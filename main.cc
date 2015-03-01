@@ -112,7 +112,8 @@ public:
       DUMPA(opc, 2);
       DUMP("add.l D%d, D%d\n", si, di);
     } else {
-      fprintf(stderr, "Unimplemented op: [%04x]\n", op);
+      DUMPA(opc, 2);
+      DUMP("*ERROR* Unimplemented op\n");
       exit(1);
     }
   }
@@ -240,7 +241,7 @@ int main() {
   x68k.boot();
 
   for (;;) {
-    x68k.stat();
+    //x68k.stat();
     x68k.step();
   }
 
