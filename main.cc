@@ -4,11 +4,84 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#define DUMP  printf
+
 class MC68K {
 public:
   typedef uint32_t DWORD;
   typedef uint16_t WORD;
   typedef uint8_t BYTE;
+
+public:
+  MC68K() {
+    clear();
+  }
+
+  void boot() {
+    a[7] = readMem32(0);
+    pc = readMem32(4);
+  }
+
+  void stat() {
+    printf("PC:%08x\n", pc);
+  }
+
+  void step() {
+    WORD op = readMem16(pc);
+    pc += 2;
+    if (op == 0x46fc) {
+      sr = readMem16(pc);
+      DUMP("move #$%04x, SR\n", sr);
+    } else {
+      fprintf(stderr, "Unimplemented op: [%04x]\n", op);
+      exit(1);
+    }
+  }
+
+  //protected:
+public:
+  DWORD d[8];  // Data registers.
+  DWORD a[8];  // Address registers.
+  DWORD pc;    // Program counter.
+  WORD sr;     // Status register.
+
+private:
+  void clear() {
+    for (int i = 0; i < 8; ++i) {
+      d[i] = 0;
+      a[i] = 0;
+    }
+    pc = 0;
+  }
+
+  virtual BYTE readMem8(DWORD adr) = 0;
+  virtual WORD readMem16(DWORD adr) {
+    return (readMem8(adr) << 8) | readMem8(adr + 1);
+  }
+  virtual DWORD readMem32(DWORD adr) {
+    return (readMem8(adr) << 24) | (readMem8(adr + 1) << 16) | (readMem8(adr + 2) << 8) | readMem8(adr + 3);
+  }
+};
+
+class X68K : public MC68K {
+public:
+  X68K(const uint8_t* ipl) {
+    this->ipl = ipl;
+  }
+
+  virtual BYTE readMem8(DWORD adr) {
+    if (/*0x0000 <= adr &&*/ adr <= 0xffff) {
+      return ipl[adr + 0x10000];
+    }
+    if (0xfe0000 <= adr && adr <= 0xffffff) {
+      return ipl[adr - 0xfe0000];
+    }
+    // TODO: Raise bus error.
+    return 0;
+  }
+
+private:
+  const BYTE* ipl;
 };
 
 uint8_t* readFile(const char* fileName, size_t* pSize) {
@@ -49,9 +122,14 @@ int main() {
   uint8_t* ipl = readFile(kIplRomFileName, &iplSize);
   printf("ipl = %p, size = %ld\n", ipl, iplSize);
 
-  MC68K::DWORD a7 = (ipl[0x10000] << 24) | (ipl[0x10001] << 16) | (ipl[0x10002] << 8) | (ipl[0x10003]);
-  MC68K::DWORD pc = (ipl[0x10004] << 24) | (ipl[0x10005] << 16) | (ipl[0x10006] << 8) | (ipl[0x10007]);
-  printf("a7 = %08x, pc = %08x\n", a7, pc);
+  X68K x68k(ipl);
+  x68k.boot();
+
+  x68k.stat();
+
+  x68k.step();
+
+  x68k.stat();
 
   return 0;
 }
