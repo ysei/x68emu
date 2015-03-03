@@ -41,7 +41,6 @@ int main() {
   static const char* kIplRomFileName = "X68BIOSE/IPLROM.DAT";
   size_t iplSize;
   uint8_t* ipl = readFile(kIplRomFileName, &iplSize);
-  printf("ipl = %p, size = %ld\n", ipl, iplSize);
 
   X68K x68k(ipl);
 
