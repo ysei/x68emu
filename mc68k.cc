@@ -159,7 +159,7 @@ void MC68K::writeMem32(LONG adr, LONG value) {
 }
 
 void MC68K::DUMPA(uint32_t adr, int bytes) {
-  char buffer[32], *p = buffer;
+  char buffer[40], *p = buffer;
   p += sprintf(p, "%06x:", adr);
   for (int i = 0; i < bytes; i += 2) {
     p += sprintf(p, " %04x", readMem16(adr + i));
