@@ -36,9 +36,12 @@ public:
     clear();
   }
 
-  void boot() {
-    a[7] = readMem32(0);
-    pc = readMem32(4);
+  void setPc(DWORD adr) {
+    pc = adr;
+  }
+
+  void setSp(DWORD adr) {
+    a[7] = adr;
   }
 
   void stat() {
@@ -178,11 +181,15 @@ class X68K : public MC68K {
 public:
   X68K(const uint8_t* ipl) {
     this->ipl = ipl;
+    this->mem = new BYTE[0x10000];
+
+    setSp((ipl[0x10000] << 24) | (ipl[0x10001] << 16) | (ipl[0x10002] << 8) | ipl[0x10003]);
+    setPc((ipl[0x10004] << 24) | (ipl[0x10005] << 16) | (ipl[0x10006] << 8) | ipl[0x10007]);
   }
 
   virtual BYTE readMem8(DWORD adr) override {
     if (/*0x0000 <= adr &&*/ adr <= 0xffff) {
-      return ipl[adr + 0x10000];
+      return mem[adr];
     }
     if (0xfe0000 <= adr && adr <= 0xffffff) {
       return ipl[adr - 0xfe0000];
@@ -191,12 +198,17 @@ public:
     return 0;
   }
 
-  virtual void writeMem8(DWORD /*adr*/, BYTE /*value*/) override {
-    // TODO: Implement.
+  virtual void writeMem8(DWORD adr, BYTE value) override {
+    if (/*0x0000 <= adr &&*/ adr <= 0xffff) {
+      mem[adr] = value;
+      return;
+    }
+    // TODO: Raise bus error.
   }
 
 private:
   const BYTE* ipl;
+  BYTE* mem;
 };
 
 uint8_t* readFile(const char* fileName, size_t* pSize) {
@@ -238,7 +250,6 @@ int main() {
   printf("ipl = %p, size = %ld\n", ipl, iplSize);
 
   X68K x68k(ipl);
-  x68k.boot();
 
   for (;;) {
     //x68k.stat();
