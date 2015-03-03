@@ -28,24 +28,45 @@ void MC68K::step() {
   WORD op = readMem16(pc);
   pc += 2;
   if ((op & 0xf1ff) == 0x203c) {
-    int di = (op >> 9) & 3;
+    int di = (op >> 9) & 7;
     d[di].l = readMem32(pc);
     pc += 4;
     DUMPA(opc, 6);
     DUMP("move.l #$%08x, D%d\n", d[di].l, di);
   } else if ((op & 0xf1f7) == 0x20c0) {
-    int di = (op >> 9) & 3;
-    int si = op & 3;
-    writeMem32(a[di], d[si].l);
-    a[di] += 4;
+    int di = (op >> 9) & 7;
+    int si = op & 7;
     DUMPA(opc, 2);
     DUMP("move.l D%d, (A%d)+\n", si, di);
+    writeMem32(a[di], d[si].l);
+    a[di] += 4;
+  } else if ((op & 0xfff8) == 0x22d8) {
+    int si = op & 7;
+    DUMPA(opc, 2);
+    DUMP("move.l (A%d)+, (A1)+\n", si);
+    writeMem32(a[1], readMem32(a[si]));
+    a[si] += 4;
+    a[1] += 4;
+  } else if (op == 0x23fc) {
+    DWORD src = readMem32(pc);
+    pc += 4;
+    DWORD dst = readMem32(pc);
+    pc += 4;
+    DUMPA(opc, 10);
+    DUMP("move.l #$%08x, $%08x\n", src, dst);
+    writeMem32(dst, src);
   } else if ((op & 0xf1ff) == 0x303c) {
-    int di = (op >> 9) & 3;
+    int di = (op >> 9) & 7;
     d[di].w = readMem16(pc);
     pc += 2;
     DUMPA(opc, 4);
     DUMP("move.w #$%04x, D%d\n", d[di].w, di);
+  } else if ((op & 0xf1ff) == 0x41f9) {
+    int di = (op >> 9) & 7;
+    a[di] = readMem32(pc);
+    pc += 4;
+    DUMPA(opc, 6);
+    DUMP("lea $%08x.l, A%d\n", a[di], di);
   } else if (op == 0x46fc) {
     sr = readMem16(pc);
     pc += 2;
@@ -58,17 +79,12 @@ void MC68K::step() {
     pc = pop32();
     DUMPA(opc, 2);
     DUMP("rts\n");
-  } else if (op == 0x4ff9) {
-    a[7] = readMem32(pc);
-    pc += 4;
-    DUMPA(opc, 6);
-    DUMP("lea $%08x.l, A7\n", a[7]);
   } else if ((op & 0xfff8) == 0x51c8) {
     int si = op & 7;
     SWORD ofs = readMem16(pc);
     pc += 2;
-    d[si].l -= 1;
-    if (d[si].l != (DWORD)(-1))
+    d[si].w -= 1;
+    if (d[si].w != (WORD)(-1))
       pc = (pc - 2) + ofs;
     DUMPA(opc, 4);
     DUMP("dbra D%d, %06x\n", si, (opc + 2) + ofs);
@@ -78,6 +94,14 @@ void MC68K::step() {
     pc = adr;
     DUMPA(opc, 4);
     DUMP("bsr %06x\n", adr);
+  } else if ((op & 0xf100) == 0x7000) {
+    int di = (op >> 9) & 7;
+    DWORD val = op & 0xff;
+    if (val >= 0x80)
+      val = -256 + val;
+    d[di].l = val;
+    DUMPA(opc, 2);
+    DUMP("moveq #%d, D%d\n", val, di);
   } else if ((op & 0xfff8) == 0x91c8) {
     int si = op & 7;
     a[0] -= a[si];
@@ -137,5 +161,5 @@ void MC68K::DUMPA(uint32_t adr, int bytes) {
   for (int i = 0; i < bytes; i += 2) {
     p += sprintf(p, " %04x", readMem16(adr + i));
   }
-  printf("%-30s  ", buffer);
+  printf("%-32s  ", buffer);
 }
