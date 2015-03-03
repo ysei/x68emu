@@ -8,9 +8,9 @@ public:
   X68K(const uint8_t* ipl);
   virtual ~X68K();
 
-  virtual BYTE readMem8(DWORD adr) override;
+  virtual BYTE readMem8(LONG adr) override;
 
-  virtual void writeMem8(DWORD adr, BYTE value) override;
+  virtual void writeMem8(LONG adr, BYTE value) override;
 
 private:
   const BYTE* ipl;

@@ -5,13 +5,13 @@
 
 class MC68K {
 public:
-  typedef uint32_t DWORD;
+  typedef uint32_t LONG;
   typedef uint16_t WORD;
   typedef uint8_t BYTE;
   typedef int16_t SWORD;
 
   union Reg {
-    DWORD l;  // long
+    LONG l;  // long
 #if 1  // For little endian.
     struct {
       WORD w;  // word
@@ -32,32 +32,32 @@ public:
   MC68K();
   virtual ~MC68K();
 
-  void setPc(DWORD adr);
-  void setSp(DWORD adr);
+  void setPc(LONG adr);
+  void setSp(LONG adr);
 
   void step();
 
 //protected:
 public:
   Reg d[8];  // Data registers.
-  DWORD a[8];  // Address registers.
-  DWORD pc;    // Program counter.
+  LONG a[8];  // Address registers.
+  LONG pc;    // Program counter.
   WORD sr;     // Status register.
 
 private:
-  virtual BYTE readMem8(DWORD adr) = 0;
-  virtual WORD readMem16(DWORD adr);
-  virtual DWORD readMem32(DWORD adr);
+  virtual BYTE readMem8(LONG adr) = 0;
+  virtual WORD readMem16(LONG adr);
+  virtual LONG readMem32(LONG adr);
 
-  virtual void writeMem8(DWORD adr, BYTE value) = 0;
-  virtual void writeMem16(DWORD adr, WORD value);
-  virtual void writeMem32(DWORD adr, DWORD value);
+  virtual void writeMem8(LONG adr, BYTE value) = 0;
+  virtual void writeMem16(LONG adr, WORD value);
+  virtual void writeMem32(LONG adr, LONG value);
 
   void clear();
   void stat();
 
-  void push32(DWORD value);
-  DWORD pop32();
+  void push32(LONG value);
+  LONG pop32();
 
   void DUMPA(uint32_t adr, int bytes);
 };

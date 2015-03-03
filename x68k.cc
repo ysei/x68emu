@@ -16,7 +16,7 @@ X68K::~X68K() {
   delete[] mem;
 }
 
-BYTE X68K::readMem8(DWORD adr) {
+BYTE X68K::readMem8(LONG adr) {
   if (/*0x0000 <= adr &&*/ adr <= 0xffff) {
     return mem[adr];
   }
@@ -29,7 +29,7 @@ BYTE X68K::readMem8(DWORD adr) {
   return 0;
 }
 
-void X68K::writeMem8(DWORD adr, BYTE value) {
+void X68K::writeMem8(LONG adr, BYTE value) {
   if (/*0x0000 <= adr &&*/ adr <= 0xffff) {
     mem[adr] = value;
     return;

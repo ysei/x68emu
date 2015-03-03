@@ -5,7 +5,7 @@
 #define DUMP  printf
 
 typedef MC68K::WORD WORD;
-typedef MC68K::DWORD DWORD;
+typedef MC68K::LONG LONG;
 
 MC68K::MC68K() {
   clear();
@@ -14,11 +14,11 @@ MC68K::MC68K() {
 MC68K::~MC68K() {
 }
 
-void MC68K::setPc(DWORD adr) {
+void MC68K::setPc(LONG adr) {
   pc = adr;
 }
 
-void MC68K::setSp(DWORD adr) {
+void MC68K::setSp(LONG adr) {
   a[7] = adr;
 }
 
@@ -27,7 +27,7 @@ void MC68K::stat() {
 }
 
 void MC68K::step() {
-  DWORD opc = pc;
+  LONG opc = pc;
   WORD op = readMem16(pc);
   pc += 2;
   if ((op & 0xf1ff) == 0x203c) {
@@ -51,9 +51,9 @@ void MC68K::step() {
     a[si] += 4;
     a[1] += 4;
   } else if (op == 0x23fc) {
-    DWORD src = readMem32(pc);
+    LONG src = readMem32(pc);
     pc += 4;
-    DWORD dst = readMem32(pc);
+    LONG dst = readMem32(pc);
     pc += 4;
     DUMPA(opc, 10);
     DUMP("move.l #$%08x, $%08x\n", src, dst);
@@ -92,14 +92,14 @@ void MC68K::step() {
     DUMPA(opc, 4);
     DUMP("dbra D%d, %06x\n", si, (opc + 2) + ofs);
   } else if (op == 0x6100) {
-    DWORD adr = pc + (SWORD)readMem16(pc);
+    LONG adr = pc + (SWORD)readMem16(pc);
     push32(pc + 2);
     pc = adr;
     DUMPA(opc, 4);
     DUMP("bsr %06x\n", adr);
   } else if ((op & 0xf100) == 0x7000) {
     int di = (op >> 9) & 7;
-    DWORD val = op & 0xff;
+    LONG val = op & 0xff;
     if (val >= 0x80)
       val = -256 + val;
     d[di].l = val;
@@ -130,28 +130,28 @@ void MC68K::clear() {
   pc = 0;
 }
 
-void MC68K::push32(DWORD value) {
+void MC68K::push32(LONG value) {
   writeMem32(a[7] -= 4, value);
 }
 
-DWORD MC68K::pop32() {
-  DWORD adr = a[7];
+LONG MC68K::pop32() {
+  LONG adr = a[7];
   a[7] += 4;
   return readMem32(adr);
 }
 
-WORD MC68K::readMem16(DWORD adr) {
+WORD MC68K::readMem16(LONG adr) {
   return (readMem8(adr) << 8) | readMem8(adr + 1);
 }
-DWORD MC68K::readMem32(DWORD adr) {
+LONG MC68K::readMem32(LONG adr) {
   return (readMem8(adr) << 24) | (readMem8(adr + 1) << 16) | (readMem8(adr + 2) << 8) | readMem8(adr + 3);
 }
 
-void MC68K::writeMem16(DWORD adr, WORD value) {
+void MC68K::writeMem16(LONG adr, WORD value) {
   writeMem8(adr    , value >> 8);
   writeMem8(adr + 1, value);
 }
-void MC68K::writeMem32(DWORD adr, DWORD value) {
+void MC68K::writeMem32(LONG adr, LONG value) {
   writeMem8(adr    , value >> 24);
   writeMem8(adr + 1, value >> 16);
   writeMem8(adr + 2, value >> 8);
