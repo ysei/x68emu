@@ -59,7 +59,7 @@ private:
   void push32(LONG value);
   LONG pop32();
 
-  void DUMPA(uint32_t adr, int bytes);
+  void dumpOps(uint32_t adr, int bytes);
 };
 
 #endif
