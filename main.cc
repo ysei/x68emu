@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -116,8 +117,7 @@ public:
       DUMP("add.l D%d, D%d\n", si, di);
     } else {
       DUMPA(opc, 2);
-      DUMP("*ERROR* Unimplemented op\n");
-      exit(1);
+      assert(!"*ERROR* Unimplemented op\n");
     }
   }
 
@@ -194,7 +194,9 @@ public:
     if (0xfe0000 <= adr && adr <= 0xffffff) {
       return ipl[adr - 0xfe0000];
     }
-    // TODO: Raise bus error.
+
+    fprintf(stderr, "%06x: ", adr);
+    assert(!"readMem failed\n");
     return 0;
   }
 
@@ -203,7 +205,9 @@ public:
       mem[adr] = value;
       return;
     }
-    // TODO: Raise bus error.
+
+    fprintf(stderr, "%06x: ", adr);
+    assert(!"writeMem failed\n");
   }
 
 private:
