@@ -191,7 +191,7 @@ public:
     return 0;
   }
 
-  virtual void writeMem8(DWORD adr, BYTE value) override {
+  virtual void writeMem8(DWORD /*adr*/, BYTE /*value*/) override {
     // TODO: Implement.
   }
 
