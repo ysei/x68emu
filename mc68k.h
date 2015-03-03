@@ -30,6 +30,7 @@ public:
 
 public:
   MC68K();
+  virtual ~MC68K();
 
   void setPc(DWORD adr);
   void setSp(DWORD adr);

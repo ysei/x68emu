@@ -6,6 +6,7 @@
 class X68K : public MC68K {
 public:
   X68K(const uint8_t* ipl);
+  virtual ~X68K();
 
   virtual BYTE readMem8(DWORD adr) override;
 

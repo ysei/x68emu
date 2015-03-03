@@ -6,10 +6,14 @@ typedef MC68K::BYTE BYTE;
 
 X68K::X68K(const uint8_t* ipl) {
   this->ipl = ipl;
-  this->mem = new BYTE[0x10000];
+  mem = new BYTE[0x10000];
 
   setSp((ipl[0x10000] << 24) | (ipl[0x10001] << 16) | (ipl[0x10002] << 8) | ipl[0x10003]);
   setPc((ipl[0x10004] << 24) | (ipl[0x10005] << 16) | (ipl[0x10006] << 8) | ipl[0x10007]);
+}
+
+X68K::~X68K() {
+  delete[] mem;
 }
 
 BYTE X68K::readMem8(DWORD adr) {

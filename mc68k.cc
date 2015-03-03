@@ -11,6 +11,9 @@ MC68K::MC68K() {
   clear();
 }
 
+MC68K::~MC68K() {
+}
+
 void MC68K::setPc(DWORD adr) {
   pc = adr;
 }
