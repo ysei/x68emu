@@ -4,8 +4,14 @@
 
 #define DUMP(pc, n, fmt, ...)  { dumpOps(pc, n); printf(fmt "\n", ##__VA_ARGS__); fflush(stdout); }
 
+typedef MC68K::BYTE BYTE;
 typedef MC68K::WORD WORD;
 typedef MC68K::LONG LONG;
+
+constexpr BYTE FLAG_C = 1 << 0;
+//constexpr BYTE FLAG_V = 1 << 1;
+constexpr BYTE FLAG_Z = 1 << 2;
+constexpr BYTE FLAG_N = 1 << 3;
 
 MC68K::MC68K() {
   clear();
@@ -30,7 +36,21 @@ void MC68K::step() {
   LONG opc = pc;
   WORD op = readMem16(pc);
   pc += 2;
-  if ((op & 0xf1ff) == 0x203c) {
+  if ((op & 0xf1f8) == 0x0100) {
+    int si = op & 7;
+    int di = (op >> 9) & 7;
+    if ((d[di].l & (1 << (d[si].b & 31))) == 0)
+      sr |= FLAG_Z;
+    else
+      sr &= ~FLAG_Z;
+    DUMP(opc, 2, "btst D%d, D%d", si, di);
+  } else if (op == 0x13fc) {
+    WORD im = readMem16(pc);
+    LONG adr = readMem32(pc + 2);
+    pc += 6;
+    DUMP(opc, 8, "move.b #$%02x, $%08x.l", im & 0xff, adr);
+    writeMem8(adr, im);
+  } else if ((op & 0xf1ff) == 0x203c) {
     int di = (op >> 9) & 7;
     d[di].l = readMem32(pc);
     pc += 4;
@@ -86,6 +106,20 @@ void MC68K::step() {
     push32(pc + 2);
     pc = adr;
     DUMP(opc, 4, "bsr %06x", adr);
+  } else if (op == 0x6600) {
+    SWORD ofs = readMem16(pc);
+    LONG dest = pc + 2 + ofs;
+    if ((sr & FLAG_Z) == 0)
+      pc = dest;
+    DUMP(opc, 4, "bne %06x", dest);
+  } else if ((op & 0xff00) == 0x6600) {
+    SWORD ofs = op & 0xff;
+    if (ofs >= 0x80)
+      ofs = 256 - ofs;
+    LONG dest = pc + ofs;
+    if ((sr & FLAG_Z) == 0)
+      pc = dest;
+    DUMP(opc, 2, "bne %06x", dest);
   } else if ((op & 0xf100) == 0x7000) {
     int di = (op >> 9) & 7;
     LONG val = op & 0xff;
@@ -97,6 +131,23 @@ void MC68K::step() {
     int si = op & 7;
     a[0] -= a[si];
     DUMP(opc, 2, "suba.l A%d, A0", si);
+  } else if ((op & 0xf1f8) == 0xb108) {
+    int si = op & 7;
+    int di = (op >> 9) & 7;
+    BYTE v1 = readMem8(a[di]);
+    BYTE v2 = readMem8(a[si]);
+    a[si] += 1;
+    a[di] += 1;
+    BYTE c = 0;
+    // TODO: Check flag is true.
+    if (v1 < v2)
+      c |= FLAG_C;
+    if (v1 == v2)
+      c |= FLAG_Z;
+    if (((v1 - v2) & 0x80) != 0)
+      c |= FLAG_N;
+    sr = (sr & 0xff00) | c;
+    DUMP(opc, 2, "cmpm.b (A%d)+, (A%d)+", si, di);
   } else if ((op & 0xf1f8) == 0xd080) {
     int di = (op >> 9) & 7;
     int si = op & 7;

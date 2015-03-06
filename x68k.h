@@ -15,6 +15,7 @@ public:
 private:
   const BYTE* ipl;
   BYTE* mem;
+  BYTE* sram;
 };
 
 #endif
