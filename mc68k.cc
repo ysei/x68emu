@@ -97,6 +97,13 @@ void MC68K::step() {
     int si = op & 7;
     DUMP(opc, pc - opc, "movea.l (A%d), A%d", si, di);
     a[di] = readMem32(a[si]);
+  } else if ((op & 0xf1f8) == 0x2068) {
+    int di = (op >> 9) & 7;
+    int si = op & 7;
+    SWORD ofs = readMem16(pc);
+    pc += 2;
+    DUMP(opc, pc - opc, "movea.l (%d, A%d), A%d", ofs, si, di);
+    a[di] = readMem32(a[si] + ofs);
   } else if ((op & 0xf1f8) == 0x2000) {
     int di = (op >> 9) & 7;
     int si = op & 7;
@@ -141,6 +148,12 @@ void MC68K::step() {
     pc += 8;
     DUMP(opc, pc - opc, "move.l #$%08x, $%08x", src, dst);
     writeMem32(dst, src);
+  } else if ((op & 0xf1ff) == 0x3039) {
+    int di = (op >> 9) & 7;
+    LONG src = readMem32(pc);
+    pc += 4;
+    DUMP(opc, pc - opc, "move.w $%08x.l, D%d", src, di);
+    d[di].w = readMem16(src);
   } else if ((op & 0xf1ff) == 0x303c) {
     int di = (op >> 9) & 7;
     d[di].w = readMem16(pc);
@@ -164,6 +177,21 @@ void MC68K::step() {
     pc += 4;
     DUMP(opc, pc - opc, "move.w D%d, $%08x.l", si, dst);
     writeMem16(dst, d[si].w);
+  } else if ((op & 0xf1f8) == 0x3150) {
+    int di = (op >> 9) & 7;
+    int si = op & 7;
+    SWORD ofs = readMem16(pc);
+    pc += 2;
+    DUMP(opc, pc - opc, "move.w (A%d), (%d, A%d)", si, ofs, di);
+    writeMem32(a[di] + ofs, readMem16(a[si]));
+  } else if ((op & 0xf1f8) == 0x3168) {
+    int di = (op >> 9) & 7;
+    int si = op & 7;
+    SWORD sofs = readMem16(pc);
+    SWORD dofs = readMem16(pc + 2);
+    pc += 4;
+    DUMP(opc, pc - opc, "move.w (%d, A%d), (%d, A%d)", sofs, si, dofs, di);
+    writeMem32(a[di] + dofs, readMem16(a[si] + sofs));
   } else if ((op & 0xf1f8) == 0x41e8) {
     int di = (op >> 9) & 7;
     int si = op & 7;
@@ -260,6 +288,18 @@ void MC68K::step() {
     DUMP(opc, pc - opc, "jsr (A%d)", di);
     push32(pc);
     pc = a[di];
+  } else if ((op & 0xf1f8) == 0x5088) {
+    int ofs = (op >> 9) & 7;
+    int si = op & 7;
+    ofs = ((ofs - 1) & 7) + 1;
+    DUMP(opc, pc - opc, "addq.l #%d, A%d", ofs, si);
+    a[si] += ofs;
+  } else if ((op & 0xf1f8) == 0x5140) {
+    int ofs = (op >> 9) & 7;
+    int si = op & 7;
+    ofs = ((ofs - 1) & 7) + 1;
+    DUMP(opc, pc - opc, "subq.w #%d, D%d", ofs, si);
+    d[si].w += ofs;
   } else if ((op & 0xfff8) == 0x51c8) {
     int si = op & 7;
     SWORD ofs = readMem16(pc);
