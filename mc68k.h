@@ -8,7 +8,9 @@ public:
   typedef uint32_t LONG;
   typedef uint16_t WORD;
   typedef uint8_t BYTE;
+  typedef int32_t SLONG;
   typedef int16_t SWORD;
+  typedef int8_t SBYTE;
 
   union Reg {
     LONG l;  // long
