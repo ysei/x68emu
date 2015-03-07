@@ -46,6 +46,13 @@ void MC68K::step() {
     DUMP(opc, pc - opc, "move.%c #$%x, (A%d)+", kSizeStr[size], src, di);
     writeValue(a[di], size, src);
     a[di] += kSizeTable[size];
+  } else if ((op & 0xcfff) == 0x03fc) {  // Except 0x0xxx  (0x1xxx, 0x2xxx, 0x3xxx)
+    int size = (op >> 12) & 3;
+    LONG src = fetchImmediate(size);
+    LONG dst = readMem32(pc);
+    pc += 4;
+    DUMP(opc, pc - opc, "move.%c #$%x, $%08x.l", kSizeStr[size], src, dst);
+    writeValue(dst, size, src);
   } else if ((op & 0xf1f8) == 0x0100) {
     int si = op & 7;
     int di = (op >> 9) & 7;
