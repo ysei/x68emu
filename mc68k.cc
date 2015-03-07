@@ -13,6 +13,9 @@ constexpr BYTE FLAG_C = 1 << 0;
 constexpr BYTE FLAG_Z = 1 << 2;
 constexpr BYTE FLAG_N = 1 << 3;
 
+static const char kSizeStr[] = {'\0', 'b', 'l', 'w'};
+static const char kSizeTable[] = {0, 1, 4, 2};
+
 MC68K::MC68K() {
   clear();
 }
@@ -36,7 +39,14 @@ void MC68K::step() {
   LONG opc = pc;
   WORD op = readMem16(pc);
   pc += 2;
-  if ((op & 0xf1f8) == 0x0100) {
+  if ((op & 0xc1ff) == 0x00fc) {  // Except 0x0xxx  (0x1xxx, 0x2xxx, 0x3xxx)
+    int size = (op >> 12) & 3;
+    int di = (op >> 9) & 7;
+    LONG src = fetchImmediate(size);
+    DUMP(opc, pc - opc, "move.%c #$%x, (A%d)+", kSizeStr[size], src, di);
+    writeValue(a[di], size, src);
+    a[di] += kSizeTable[size];
+  } else if ((op & 0xf1f8) == 0x0100) {
     int si = op & 7;
     int di = (op >> 9) & 7;
     if ((d[di].l & (1 << (d[si].b & 31))) == 0)
@@ -62,13 +72,6 @@ void MC68K::step() {
     writeMem8(a[di], readMem8(a[si]));
     a[si] += 1;
     a[di] += 1;
-  } else if ((op & 0xf1ff) == 0x10fc) {
-    int di = (op >> 9) & 7;
-    WORD src = readMem16(pc);
-    pc += 2;
-    DUMP(opc, pc - opc, "move.b #$%02x, (A%d)+", src, di);
-    writeMem8(a[di], src);
-    a[di] += 1;
   } else if (op == 0x13fc) {
     WORD im = readMem16(pc);
     LONG adr = readMem32(pc + 2);
@@ -92,13 +95,6 @@ void MC68K::step() {
     DUMP(opc, pc - opc, "move.l (A%d)+, (A%d)+", si, di);
     writeMem32(a[di], readMem32(a[si]));
     a[si] += 4;
-    a[di] += 4;
-  } else if ((op & 0xf1ff) == 0x20fc) {
-    int di = (op >> 9) & 7;
-    LONG src = readMem32(pc);
-    pc += 4;
-    DUMP(opc, pc - opc, "move.l #$%08x, (A%d)+", src, di);
-    writeMem32(a[di], src);
     a[di] += 4;
   } else if ((op & 0xfff8) == 0x23c8) {
     int si = op & 7;

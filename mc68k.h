@@ -59,6 +59,38 @@ private:
   void push32(LONG value);
   LONG pop32();
 
+  inline LONG fetchImmediate(int size) {
+    switch (size) {
+    case 1:
+      {
+        BYTE b = readMem16(pc);
+        pc += 2;
+        return b;
+      }
+    case 2:
+      {
+        LONG l = readMem32(pc);
+        pc += 4;
+        return l;
+      }
+    case 3:
+      {
+        WORD w = readMem16(pc);
+        pc += 2;
+        return w;
+      }
+    }
+    return 0;
+  }
+
+  inline void writeValue(LONG adr, int size, LONG value) {
+    switch (size) {
+    case 1:  writeMem8(adr, value); break;
+    case 2:  writeMem32(adr, value); break;
+    case 3:  writeMem16(adr, value); break;
+    }
+  }
+
   void dumpOps(uint32_t adr, int bytes);
 };
 
