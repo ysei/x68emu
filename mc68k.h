@@ -95,6 +95,10 @@ private:
 
   WORD readSource16(int type, int m, char** str);
   void writeDestination16(int type, int n, WORD src, LONG opc, char** str);
+  LONG readSource32(int type, int m, char** str);
+  void writeDestination32(int type, int n, LONG src, LONG opc, char** str);
+  BYTE readSource8(int type, int m, char** str);
+  void writeDestination8(int type, int n, BYTE src, LONG opc, char** str);
 
   void dumpOps(uint32_t adr, int bytes);
 };

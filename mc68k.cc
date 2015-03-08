@@ -73,91 +73,24 @@ void MC68K::step() {
       sr |= FLAG_Z;
     else
       sr &= ~FLAG_Z;
-  } else if ((op & 0xf1ff) == 0x1039) {
-    int di = (op >> 9) & 7;
-    LONG src = readMem32(pc);
-    pc += 4;
-    DUMP(opc, pc - opc, "move.b $%08x.l, D%d", src, di);
-    d[di].b = readMem8(src);
-  } else if ((op & 0xf1f8) == 0x10c0) {
-    int si = op & 7;
-    int di = (op >> 9) & 7;
-    DUMP(opc, pc - opc, "move.b D%d, (A%d)+", si, di);
-    writeMem8(a[di], d[di].b);
-  } else if ((op & 0xf1f8) == 0x10d8) {
-    int di = (op >> 9) & 7;
-    int si = op & 7;
-    DUMP(opc, pc - opc, "move.b (A%d)+, (A%d)+", si, di);
-    writeMem8(a[di], readMem8(a[si]));
-    a[si] += 1;
-    a[di] += 1;
-  } else if (op == 0x13fc) {
-    WORD im = readMem16(pc);
-    LONG adr = readMem32(pc + 2);
-    pc += 6;
-    DUMP(opc, pc - opc, "move.b #$%02x, $%08x.l", im & 0xff, adr);
-    writeMem8(adr, im);
-  } else if ((op & 0xf1ff) == 0x203c) {
-    int di = (op >> 9) & 7;
-    d[di].l = readMem32(pc);
-    pc += 4;
-    DUMP(opc, pc - opc, "move.l #$%08x, D%d", d[di].l, di);
-  } else if ((op & 0xf1f8) == 0x2050) {
-    int di = (op >> 9) & 7;
-    int si = op & 7;
-    DUMP(opc, pc - opc, "movea.l (A%d), A%d", si, di);
-    a[di] = readMem32(a[si]);
-  } else if ((op & 0xf1f8) == 0x2068) {
-    int di = (op >> 9) & 7;
-    int si = op & 7;
-    SWORD ofs = readMem16(pc);
-    pc += 2;
-    DUMP(opc, pc - opc, "movea.l (%d, A%d), A%d", ofs, si, di);
-    a[di] = readMem32(a[si] + ofs);
-  } else if ((op & 0xf1f8) == 0x2000) {
-    int di = (op >> 9) & 7;
-    int si = op & 7;
-    DUMP(opc, pc - opc, "move.l D%d, D%d", si, di);
-    d[di] = d[si];
-  } else if ((op & 0xf1f8) == 0x20c0) {
-    int di = (op >> 9) & 7;
-    int si = op & 7;
-    DUMP(opc, pc - opc, "move.l D%d, (A%d)+", si, di);
-    writeMem32(a[di], d[si].l);
-    a[di] += 4;
-  } else if ((op & 0xf1f8) == 0x20d8) {
-    int di = (op >> 9) & 7;
-    int si = op & 7;
-    DUMP(opc, pc - opc, "move.l (A%d)+, (A%d)+", si, di);
-    writeMem32(a[di], readMem32(a[si]));
-    a[si] += 4;
-    a[di] += 4;
-  } else if ((op & 0xf1f8) == 0x2140) {
-    int di = (op >> 9) & 7;
-    int si = op & 7;
-    SWORD ofs = readMem16(pc);
-    pc += 2;
-    DUMP(opc, pc - opc, "move.l D%d, (%d, A%d)", si, ofs, di);
-    writeMem32(a[di] + ofs, d[si].l);
-  } else if ((op & 0xf1f8) == 0x2148) {
-    int di = (op >> 9) & 7;
-    int si = op & 7;
-    SWORD ofs = readMem16(pc);
-    pc += 2;
-    DUMP(opc, pc - opc, "move.l A%d, (%d, A%d)", si, ofs, di);
-    writeMem32(a[di] + ofs, a[si]);
-  } else if ((op & 0xfff8) == 0x23c8) {
-    int si = op & 7;
-    LONG dst = readMem32(pc);
-    pc += 4;
-    DUMP(opc, pc - opc, "move.l A%d, $%08x", si, dst);
-    writeMem32(dst, a[si]);
-  } else if (op == 0x23fc) {
-    LONG src = readMem32(pc);
-    LONG dst = readMem32(pc + 4);
-    pc += 8;
-    DUMP(opc, pc - opc, "move.l #$%08x, $%08x", src, dst);
-    writeMem32(dst, src);
+  } else if ((op & 0xf000) == 0x1000) {  // move.b
+    char srcBuf[32], dstBuf[32];
+    char *srcStr = srcBuf, *dstStr = dstBuf;
+    int n = (op >> 9) & 7;
+    int m = op & 7;
+    int dt = (op >> 6) & 7;
+    BYTE src = readSource8((op >> 3) & 7, m, &srcStr);
+    writeDestination8(dt, n, src, opc, &dstStr);
+    DUMP(opc, pc - opc, "%s.b %s, %s", kMoveNames[dt], srcStr, dstStr);
+  } else if ((op & 0xf000) == 0x2000) {  // move.l
+    char srcBuf[32], dstBuf[32];
+    char *srcStr = srcBuf, *dstStr = dstBuf;
+    int n = (op >> 9) & 7;
+    int m = op & 7;
+    int dt = (op >> 6) & 7;
+    LONG src = readSource32((op >> 3) & 7, m, &srcStr);
+    writeDestination32(dt, n, src, opc, &dstStr);
+    DUMP(opc, pc - opc, "%s.l %s, %s", kMoveNames[dt], srcStr, dstStr);
   } else if ((op & 0xf000) == 0x3000) {  // move.w
     char srcBuf[32], dstBuf[32];
     char *srcStr = srcBuf, *dstStr = dstBuf;
@@ -587,6 +520,271 @@ void MC68K::writeDestination16(int type, int n, WORD src, LONG opc, char** str) 
         LONG adr = readMem32(pc);
         pc += 4;
         writeMem16(adr, src);
+        sprintf(*str, "$%08x", adr);
+      }
+      return;
+    default:
+      break;
+    }
+  default:
+    break;
+  }
+  NOT_IMPLEMENTED(opc);
+}
+
+LONG MC68K::readSource32(int type, int m, char** str) {
+  switch (type) {
+  case 0:  // move.l Dm, xx
+    *str = const_cast<char*>(kDataRegNames[m]);
+    return d[m].l;
+  case 1:  // move.l Am, xx
+    *str = const_cast<char*>(kAdrRegNames[m]);
+    return a[m];
+  case 2:  // move.l (Am), xx
+    *str = const_cast<char*>(kAdrIndirectNames[m]);
+    return readMem32(a[m]);
+  case 3:  // move.l (Am)+, xx
+    {
+      LONG adr = a[m];
+      a[m] += 4;
+      *str = const_cast<char*>(kPostIncAdrIndirectNames[m]);
+      return readMem32(adr);
+    }
+  case 4:  // move.l -(Am), xx
+    a[m] -= 4;
+    *str = const_cast<char*>(kPreDecAdrIndirectNames[m]);
+    return readMem32(a[m]);
+  case 5:  // move.l ($123,Am), xx
+    {
+      SWORD ofs = readMem16(pc);
+      pc += 2;
+      sprintf(*str, "(%d, A%d)", ofs, m);
+      return readMem32(a[m] + ofs);
+    }
+  case 6:  // move.l ([$4567,A0,D0.w],-$3211), xx
+    break;
+  case 7:  // Misc.
+    switch (m) {
+    case 0:  // move.l $XXXX.w, xx
+      {
+        WORD adr = readMem16(pc);
+        pc += 2;
+        sprintf(*str, "$%04x", adr);
+        return readMem32(adr);
+      }
+    case 1:  // move.l $XXXXXXXX.l, xx
+      {
+        LONG adr = readMem32(pc);
+        pc += 4;
+        sprintf(*str, "$%08x", adr);
+        return readMem32(adr);
+      }
+    case 2:  // move.l ($XXXX, PC), xx
+      {
+        SWORD ofs = readMem16(pc);
+        pc += 2;
+        sprintf(*str, "(%d, PC)", ofs);
+        return readMem32(pc + ofs);
+      }
+    case 3:  // move.l ([$XXXX,A0,D0.w],$YYYY), xx
+      break;
+    case 4:  // move.l #$XXXX, xx
+      {
+        LONG src = readMem32(pc);
+        pc += 4;
+        sprintf(*str, "#$%08x", src);
+        return src;
+      }
+    default:
+      break;
+    }
+  default:
+    break;
+  }
+  NOT_IMPLEMENTED(pc - 2);
+  return 0;
+}
+
+void MC68K::writeDestination32(int type, int n, LONG src, LONG opc, char** str) {
+  switch (type) {
+  case 0:  // move.l xx, Dn
+    d[n].l = src;
+    *str = const_cast<char*>(kDataRegNames[n]);
+    return;
+  case 1:  // move.l xx, An
+    a[n] = src;
+    *str = const_cast<char*>(kAdrRegNames[n]);
+    return;
+  case 2:  // move.l xx, (An)
+    writeMem32(a[n], src);
+    *str = const_cast<char*>(kAdrIndirectNames[n]);
+    return;
+  case 3:  // move.l xx, (An)+
+    writeMem32(a[n], src);
+    a[n] += 4;
+    *str = const_cast<char*>(kPostIncAdrIndirectNames[n]);
+    return;
+  case 4:  // move.l xx, -(An)
+    a[n] -= 4;
+    writeMem32(a[n], src);
+    *str = const_cast<char*>(kPreDecAdrIndirectNames[n]);
+    return;
+  case 5:  // move.l xx, ($123,An)
+    {
+      SWORD ofs = readMem16(pc);
+      pc += 2;
+      writeMem32(a[n] + ofs, src);
+      sprintf(*str, "(%d, A%d)", ofs, n);
+    }
+    return;
+  case 6:  // move.l xx, ([$4567,A0,D0.w],-$3211)
+    break;
+  case 7:  // move.l xx, $XXXX.w
+    switch (n) {
+    case 0:
+      {
+        WORD adr = readMem16(pc);
+        pc += 2;
+        writeMem32(adr, src);
+        sprintf(*str, "$%04x", adr);
+      }
+      return;
+    case 1:
+      {
+        LONG adr = readMem32(pc);
+        pc += 4;
+        writeMem32(adr, src);
+        sprintf(*str, "$%08x", adr);
+      }
+      return;
+    default:
+      break;
+    }
+  default:
+    break;
+  }
+  NOT_IMPLEMENTED(opc);
+}
+
+BYTE MC68K::readSource8(int type, int m, char** str) {
+  switch (type) {
+  case 0:  // move.b Dm, xx
+    *str = const_cast<char*>(kDataRegNames[m]);
+    return d[m].b;
+  case 1:  // move.b Am, xx
+    break;
+  case 2:  // move.b (Am), xx
+    *str = const_cast<char*>(kAdrIndirectNames[m]);
+    return readMem8(a[m]);
+  case 3:  // move.b (Am)+, xx
+    {
+      LONG adr = a[m];
+      a[m] += 1;
+      *str = const_cast<char*>(kPostIncAdrIndirectNames[m]);
+      return readMem8(adr);
+    }
+  case 4:  // move.b -(Am), xx
+    a[m] -= 1;
+    *str = const_cast<char*>(kPreDecAdrIndirectNames[m]);
+    return readMem8(a[m]);
+  case 5:  // move.b ($123,Am), xx
+    {
+      SWORD ofs = readMem16(pc);
+      pc += 2;
+      sprintf(*str, "(%d, A%d)", ofs, m);
+      return readMem8(a[m] + ofs);
+    }
+  case 6:  // move.b ([$4567,A0,D0.w],-$3211), xx
+    break;
+  case 7:  // Misc.
+    switch (m) {
+    case 0:  // move.b $XXXX.w, xx
+      {
+        WORD adr = readMem16(pc);
+        pc += 2;
+        sprintf(*str, "$%04x", adr);
+        return readMem8(adr);
+      }
+    case 1:  // move.b $XXXXXXXX.l, xx
+      {
+        LONG adr = readMem32(pc);
+        pc += 4;
+        sprintf(*str, "$%08x", adr);
+        return readMem8(adr);
+      }
+    case 2:  // move.b ($XXXX, PC), xx
+      {
+        SWORD ofs = readMem16(pc);
+        pc += 2;
+        sprintf(*str, "(%d, PC)", ofs);
+        return readMem8(pc + ofs);
+      }
+    case 3:  // move.b ([$XXXX,A0,D0.w],$YYYY), xx
+      break;
+    case 4:  // move.b #$XXXX, xx
+      {
+        WORD src = readMem16(pc);
+        pc += 2;
+        sprintf(*str, "#$%04x", src);
+        return src;
+      }
+    default:
+      break;
+    }
+  default:
+    break;
+  }
+  NOT_IMPLEMENTED(pc - 2);
+  return 0;
+}
+
+void MC68K::writeDestination8(int type, int n, BYTE src, LONG opc, char** str) {
+  switch (type) {
+  case 0:  // move.b xx, Dn
+    d[n].b = src;
+    *str = const_cast<char*>(kDataRegNames[n]);
+    return;
+  case 1:  // move.b xx, An
+    break;
+  case 2:  // move.b xx, (An)
+    writeMem8(a[n], src);
+    *str = const_cast<char*>(kAdrIndirectNames[n]);
+    return;
+  case 3:  // move.b xx, (An)+
+    writeMem8(a[n], src);
+    a[n] += 1;
+    *str = const_cast<char*>(kPostIncAdrIndirectNames[n]);
+    return;
+  case 4:  // move.b xx, -(An)
+    a[n] -= 1;
+    writeMem8(a[n], src);
+    *str = const_cast<char*>(kPreDecAdrIndirectNames[n]);
+    return;
+  case 5:  // move.b xx, ($123,An)
+    {
+      SWORD ofs = readMem16(pc);
+      pc += 2;
+      writeMem8(a[n] + ofs, src);
+      sprintf(*str, "(%d, A%d)", ofs, n);
+    }
+    return;
+  case 6:  // move.b xx, ([$4567,A0,D0.w],-$3211)
+    break;
+  case 7:  // move.b xx, $XXXX.w
+    switch (n) {
+    case 0:
+      {
+        WORD adr = readMem16(pc);
+        pc += 2;
+        writeMem8(adr, src);
+        sprintf(*str, "$%04x", adr);
+      }
+      return;
+    case 1:
+      {
+        LONG adr = readMem32(pc);
+        pc += 4;
+        writeMem8(adr, src);
         sprintf(*str, "$%08x", adr);
       }
       return;
