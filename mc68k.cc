@@ -156,6 +156,12 @@ void MC68K::step() {
     a[di] = readMem32(pc);
     pc += 4;
     DUMP(opc, pc - opc, "lea $%08x.l, A%d", a[di], di);
+  } else if ((op & 0xf1ff) == 0x41fa) {
+    int di = (op >> 9) & 7;
+    SWORD ofs = readMem16(pc);
+    pc += 2;
+    DUMP(opc, pc - opc, "lea (%d, PC), A%d", ofs, di);
+    a[di] = pc + ofs;
   } else if ((op & 0xfff8) == 0x4268) {
     int si = op & 7;
     SWORD ofs = readMem16(pc);
@@ -191,13 +197,27 @@ void MC68K::step() {
         push32(a[i]);
       bits <<= 1;
     }
-  } else if ((op & 0xfff8) == 0x4a68) {
+  } else if ((op & 0xffc0) == 0x4a40) {
+    char srcBuf[32], *srcStr = srcBuf;
     int si = op & 7;
-    SWORD ofs = readMem16(pc);
-    pc += 2;
-    DUMP(opc, pc - opc, "tst.w (%d, A%d)", ofs, si);
+    SWORD val = readSource16((op >> 3) & 7, si, &srcStr);
+    DUMP(opc, pc - opc, "tst.w %s", srcStr);
 
-    SWORD val = readMem16(a[si] + ofs);
+    if (val == 0)
+      sr |= FLAG_Z;
+    else
+      sr &= ~FLAG_Z;
+    if (val < 0)
+      sr |= ~FLAG_N;
+    else
+      sr &= ~FLAG_N;
+    sr &= ~(FLAG_V | FLAG_C);
+  } else if ((op & 0xffc0) == 0x4a80) {
+    char srcBuf[32], *srcStr = srcBuf;
+    int si = op & 7;
+    SLONG val = readSource32((op >> 3) & 7, si, &srcStr);
+    DUMP(opc, pc - opc, "tst.l %s", srcStr);
+
     if (val == 0)
       sr |= FLAG_Z;
     else
@@ -231,10 +251,13 @@ void MC68K::step() {
     pc = adr;
   } else if (op == 0x4e70) {
     DUMP(opc, pc - opc, "reset");
+  } else if (op == 0x4e73) {
+    DUMP(opc, pc - opc, "rte");
+    pc = pop32();
+    // TODO: Switch to user mode.
   } else if (op == 0x4e75) {
-    LONG adr = pop32();
     DUMP(opc, pc - opc, "rts");
-    pc= adr;
+    pc = pop32();
   } else if ((op & 0xfff8) == 0x4e90) {
     int di = op & 7;
     DUMP(opc, pc - opc, "jsr (A%d)", di);
