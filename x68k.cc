@@ -29,7 +29,9 @@ BYTE X68K::readMem8(LONG adr) {
     return ipl[adr - 0xfe0000];
   }
 
-  fprintf(stderr, "%06x: ", adr);
+  fflush(stdout);
+  fflush(stderr);
+  fprintf(stderr, "  ADR=[%06x]: ", adr);
   assert(!"readMem failed\n");
   return 0;
 }
@@ -37,6 +39,10 @@ BYTE X68K::readMem8(LONG adr) {
 void X68K::writeMem8(LONG adr, BYTE value) {
   if (/*0x0000 <= adr &&*/ adr <= 0xffff) {  // MAIN RAM
     mem[adr] = value;
+    return;
+  }
+  if (0xe8a000 <= adr && adr <= 0xe8bfff) {  // Printer
+    // TODO:
     return;
   }
   if (0xed0000 <= adr && adr <= 0xed3fff) {  // SRAM
@@ -47,6 +53,8 @@ void X68K::writeMem8(LONG adr, BYTE value) {
     return;
   }
 
-  fprintf(stderr, "%06x: ", adr);
+  fflush(stdout);
+  fflush(stderr);
+  fprintf(stderr, "  ADR=[%06x]: ", adr);
   assert(!"writeMem failed\n");
 }

@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 
-#define DUMP(pc, n, fmt, ...)  { dumpOps(pc, n); printf(fmt "\n", ##__VA_ARGS__); fflush(stdout); }
+#define DUMP(pc, n, fmt, ...)  { dumpOps(pc, n); printf(fmt "\n", ##__VA_ARGS__); }
 
 typedef MC68K::BYTE BYTE;
 typedef MC68K::WORD WORD;
@@ -24,9 +24,7 @@ static const char kPostIncAdrIndirectNames[][6] = {"(A0)+", "(A1)+", "(A2)+", "(
 static const char kPreDecAdrIndirectNames[][6] = {"-(A0)", "-(A1)", "-(A2)", "-(A3)", "-(A4)", "-(A5)", "-(A6)", "-(A7)"};
 static const char kMoveNames[][6] = {"move", "movea", "move", "move", "move", "move", "move", "move"};
 
-#define NOT_IMPLEMENTED(pc) \
-  { DUMP(pc, 2, "*** ERROR ***");               \
-    assert(!"Unimplemented op"); }
+#define NOT_IMPLEMENTED  { fflush(stdout); fflush(stderr); assert(!"Unimplemented op"); }
 
 MC68K::MC68K() {
   clear();
@@ -48,9 +46,12 @@ void MC68K::stat() {
 }
 
 void MC68K::step() {
-  LONG opc = pc;
   WORD op = readMem16(pc);
   pc += 2;
+  LONG opc = pc;
+
+  printf("%06x: %04x ", opc, op);
+
   if ((op & 0xc1ff) == 0x00fc) {  // Except 0x0xxx  (0x1xxx, 0x2xxx, 0x3xxx)
     int size = (op >> 12) & 3;
     int di = (op >> 9) & 7;
@@ -80,7 +81,7 @@ void MC68K::step() {
     int m = op & 7;
     int dt = (op >> 6) & 7;
     BYTE src = readSource8((op >> 3) & 7, m, &srcStr);
-    writeDestination8(dt, n, src, opc, &dstStr);
+    writeDestination8(dt, n, src, &dstStr);
     DUMP(opc, pc - opc, "%s.b %s, %s", kMoveNames[dt], srcStr, dstStr);
   } else if ((op & 0xf000) == 0x2000) {  // move.l
     char srcBuf[32], dstBuf[32];
@@ -89,7 +90,7 @@ void MC68K::step() {
     int m = op & 7;
     int dt = (op >> 6) & 7;
     LONG src = readSource32((op >> 3) & 7, m, &srcStr);
-    writeDestination32(dt, n, src, opc, &dstStr);
+    writeDestination32(dt, n, src, &dstStr);
     DUMP(opc, pc - opc, "%s.l %s, %s", kMoveNames[dt], srcStr, dstStr);
   } else if ((op & 0xf000) == 0x3000) {  // move.w
     char srcBuf[32], dstBuf[32];
@@ -98,7 +99,7 @@ void MC68K::step() {
     int m = op & 7;
     int dt = (op >> 6) & 7;
     WORD src = readSource16((op >> 3) & 7, m, &srcStr);
-    writeDestination16(dt, n, src, opc, &dstStr);
+    writeDestination16(dt, n, src, &dstStr);
     DUMP(opc, pc - opc, "%s.w %s, %s", kMoveNames[dt], srcStr, dstStr);
   } else if ((op & 0xf1ff) == 0x3039) {
     int di = (op >> 9) & 7;
@@ -162,12 +163,16 @@ void MC68K::step() {
     pc += 2;
     DUMP(opc, pc - opc, "lea (%d, PC), A%d", ofs, di);
     a[di] = pc + ofs;
-  } else if ((op & 0xfff8) == 0x4268) {
+  } else if ((op & 0xffc0) == 0x4200) {
+    char dstBuf[32], *dstStr = dstBuf;
     int si = op & 7;
-    SWORD ofs = readMem16(pc);
-    pc += 2;
-    DUMP(opc, pc - opc, "clr.w (%d, A%d)", ofs, si);
-    writeMem16(a[si] + ofs, 0);
+    writeDestination8((op >> 3) & 7, si, 0, &dstStr);
+    DUMP(opc, pc - opc, "clr.b %s", dstStr);
+  } else if ((op & 0xffc0) == 0x4240) {
+    char dstBuf[32], *dstStr = dstBuf;
+    int si = op & 7;
+    writeDestination16((op >> 3) & 7, si, 0, &dstStr);
+    DUMP(opc, pc - opc, "clr.w %s", dstStr);
   } else if (op == 0x4279) {
     LONG adr = readMem32(pc);
     pc += 4;
@@ -372,7 +377,7 @@ void MC68K::step() {
     DUMP(opc, pc - opc, "adda.l #$%08x, A%d", src, di);
     a[di] += src;
   } else {
-    NOT_IMPLEMENTED(opc);
+    NOT_IMPLEMENTED;
   }
 }
 
@@ -414,11 +419,11 @@ void MC68K::writeMem32(LONG adr, LONG value) {
 
 void MC68K::dumpOps(uint32_t adr, int bytes) {
   char buffer[40], *p = buffer;
-  p += sprintf(p, "%06x:", adr);
+  *p = '\0';
   for (int i = 0; i < bytes; i += 2) {
-    p += sprintf(p, " %04x", readMem16(adr + i));
+    p += sprintf(p, "%04x ", readMem16(adr + i));
   }
-  printf("%-32s  ", buffer);
+  printf("%-20s ", buffer);
 }
 
 WORD MC68K::readSource16(int type, int m, char** str) {
@@ -490,11 +495,11 @@ WORD MC68K::readSource16(int type, int m, char** str) {
   default:
     break;
   }
-  NOT_IMPLEMENTED(pc - 2);
+  NOT_IMPLEMENTED;
   return 0;
 }
 
-void MC68K::writeDestination16(int type, int n, WORD src, LONG opc, char** str) {
+void MC68K::writeDestination16(int type, int n, WORD src, char** str) {
   switch (type) {
   case 0:  // move.w xx, Dn
     d[n].w = src;
@@ -552,7 +557,7 @@ void MC68K::writeDestination16(int type, int n, WORD src, LONG opc, char** str) 
   default:
     break;
   }
-  NOT_IMPLEMENTED(opc);
+  NOT_IMPLEMENTED;
 }
 
 LONG MC68K::readSource32(int type, int m, char** str) {
@@ -624,11 +629,11 @@ LONG MC68K::readSource32(int type, int m, char** str) {
   default:
     break;
   }
-  NOT_IMPLEMENTED(pc - 2);
+  NOT_IMPLEMENTED;
   return 0;
 }
 
-void MC68K::writeDestination32(int type, int n, LONG src, LONG opc, char** str) {
+void MC68K::writeDestination32(int type, int n, LONG src, char** str) {
   switch (type) {
   case 0:  // move.l xx, Dn
     d[n].l = src;
@@ -686,7 +691,7 @@ void MC68K::writeDestination32(int type, int n, LONG src, LONG opc, char** str) 
   default:
     break;
   }
-  NOT_IMPLEMENTED(opc);
+  NOT_IMPLEMENTED;
 }
 
 BYTE MC68K::readSource8(int type, int m, char** str) {
@@ -757,11 +762,11 @@ BYTE MC68K::readSource8(int type, int m, char** str) {
   default:
     break;
   }
-  NOT_IMPLEMENTED(pc - 2);
+  NOT_IMPLEMENTED;
   return 0;
 }
 
-void MC68K::writeDestination8(int type, int n, BYTE src, LONG opc, char** str) {
+void MC68K::writeDestination8(int type, int n, BYTE src, char** str) {
   switch (type) {
   case 0:  // move.b xx, Dn
     d[n].b = src;
@@ -817,5 +822,5 @@ void MC68K::writeDestination8(int type, int n, BYTE src, LONG opc, char** str) {
   default:
     break;
   }
-  NOT_IMPLEMENTED(opc);
+  NOT_IMPLEMENTED;
 }
