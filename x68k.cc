@@ -22,6 +22,9 @@ BYTE X68K::readMem8(LONG adr) {
   if (/*0x0000 <= adr &&*/ adr <= 0xffff) {
     return mem[adr];
   }
+  if (0xe80000 <= adr && adr <= 0xe80030) {  // CRTC
+    return 0;
+  }
   if (0xed0000 <= adr && adr <= 0xed3fff) {
     return sram[adr - 0xed0000];
   }
@@ -41,7 +44,39 @@ void X68K::writeMem8(LONG adr, BYTE value) {
     mem[adr] = value;
     return;
   }
+  if (0xe00000 <= adr && adr <= 0xe7ffff) {  // TEXT VRAM
+    // TODO:
+    return;
+  }
+  if (0xe80000 <= adr && adr <= 0xe81fff) {  // CRTC
+    // TODO:
+    return;
+  }
+  if (0xe82000 <= adr && adr <= 0xe83fff) {  // video
+    // TODO:
+    return;
+  }
+  if (0xe84000 <= adr && adr <= 0xe85fff) {  // DMAC
+    // TODO:
+    return;
+  }
+  if (0xe86000 <= adr && adr <= 0xe87fff) {  // AREA set
+    // TODO:
+    return;
+  }
+  if (0xe88000 <= adr && adr <= 0xe89fff) {  // MFP
+    // TODO:
+    return;
+  }
   if (0xe8a000 <= adr && adr <= 0xe8bfff) {  // Printer
+    // TODO:
+    return;
+  }
+  if (0xe8c000 <= adr && adr <= 0xe8dfff) {  // Sys port
+    // TODO:
+    return;
+  }
+  if (0xe9a000 <= adr && adr <= 0xe9bfff) {  // i8255
     // TODO:
     return;
   }

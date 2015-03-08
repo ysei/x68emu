@@ -50,7 +50,7 @@ void MC68K::step() {
   pc += 2;
   LONG opc = pc;
 
-  printf("%06x: %04x ", opc, op);
+  printf("%06x: %04x ", pc - 2, op);
 
   if ((op & 0xc1ff) == 0x00fc) {  // Except 0x0xxx  (0x1xxx, 0x2xxx, 0x3xxx)
     int size = (op >> 12) & 3;
@@ -75,8 +75,8 @@ void MC68K::step() {
     else
       sr &= ~FLAG_Z;
   } else if ((op & 0xf000) == 0x1000) {  // move.b
-    char srcBuf[32], dstBuf[32];
-    char *srcStr = srcBuf, *dstStr = dstBuf;
+    char srcBuf[32], *srcStr = srcBuf;
+    char dstBuf[32], *dstStr = dstBuf;
     int n = (op >> 9) & 7;
     int m = op & 7;
     int dt = (op >> 6) & 7;
@@ -84,8 +84,8 @@ void MC68K::step() {
     writeDestination8(dt, n, src, &dstStr);
     DUMP(opc, pc - opc, "%s.b %s, %s", kMoveNames[dt], srcStr, dstStr);
   } else if ((op & 0xf000) == 0x2000) {  // move.l
-    char srcBuf[32], dstBuf[32];
-    char *srcStr = srcBuf, *dstStr = dstBuf;
+    char srcBuf[32], *srcStr = srcBuf;
+    char dstBuf[32], *dstStr = dstBuf;
     int n = (op >> 9) & 7;
     int m = op & 7;
     int dt = (op >> 6) & 7;
@@ -93,8 +93,8 @@ void MC68K::step() {
     writeDestination32(dt, n, src, &dstStr);
     DUMP(opc, pc - opc, "%s.l %s, %s", kMoveNames[dt], srcStr, dstStr);
   } else if ((op & 0xf000) == 0x3000) {  // move.w
-    char srcBuf[32], dstBuf[32];
-    char *srcStr = srcBuf, *dstStr = dstBuf;
+    char srcBuf[32], *srcStr = srcBuf;
+    char dstBuf[32], *dstStr = dstBuf;
     int n = (op >> 9) & 7;
     int m = op & 7;
     int dt = (op >> 6) & 7;
@@ -152,6 +152,19 @@ void MC68K::step() {
     pc += 2;
     DUMP(opc, pc - opc, "lea (%d, A%d), A%d", ofs, si, di);
     a[di] = a[si] + ofs;
+  } else if ((op & 0xf1f8) == 0x41f0) {
+    int di = (op >> 9) & 7;
+    int si = op & 7;
+    WORD next = readMem16(pc);
+    pc += 2;
+    if ((next & 0x8f00) == 0x0000) {
+      SBYTE ofs = next & 0xff;
+      int ii = (next >> 12) & 0x07;
+      DUMP(opc, pc - opc, "lea (%d, A%d, D%d.w), A%d", ofs, si, ii, di);
+      a[di] = a[si] + d[ii].w + ofs;
+    } else {
+      NOT_IMPLEMENTED;
+    }
   } else if ((op & 0xf1ff) == 0x41f9) {
     int di = (op >> 9) & 7;
     a[di] = readMem32(pc);
@@ -173,6 +186,11 @@ void MC68K::step() {
     int si = op & 7;
     writeDestination16((op >> 3) & 7, si, 0, &dstStr);
     DUMP(opc, pc - opc, "clr.w %s", dstStr);
+  } else if ((op & 0xffc0) == 0x4280) {
+    char dstBuf[32], *dstStr = dstBuf;
+    int si = op & 7;
+    writeDestination32((op >> 3) & 7, si, 0, &dstStr);
+    DUMP(opc, pc - opc, "clr.l %s", dstStr);
   } else if (op == 0x4279) {
     LONG adr = readMem32(pc);
     pc += 4;
@@ -202,6 +220,21 @@ void MC68K::step() {
         push32(a[i]);
       bits <<= 1;
     }
+  } else if ((op & 0xffc0) == 0x4a00) {
+    char srcBuf[32], *srcStr = srcBuf;
+    int si = op & 7;
+    SBYTE val = readSource8((op >> 3) & 7, si, &srcStr);
+    DUMP(opc, pc - opc, "tst.b %s", srcStr);
+
+    if (val == 0)
+      sr |= FLAG_Z;
+    else
+      sr &= ~FLAG_Z;
+    if (val < 0)
+      sr |= ~FLAG_N;
+    else
+      sr &= ~FLAG_N;
+    sr &= ~(FLAG_V | FLAG_C);
   } else if ((op & 0xffc0) == 0x4a40) {
     char srcBuf[32], *srcStr = srcBuf;
     int si = op & 7;
@@ -256,6 +289,9 @@ void MC68K::step() {
     pc = adr;
   } else if (op == 0x4e70) {
     DUMP(opc, pc - opc, "reset");
+    // TODO:
+  } else if (op == 0x4e71) {
+    DUMP(opc, pc - opc, "nop");
   } else if (op == 0x4e73) {
     DUMP(opc, pc - opc, "rte");
     pc = pop32();
@@ -288,34 +324,39 @@ void MC68K::step() {
     d[si].w -= 1;
     if (d[si].w != (WORD)(-1))
       pc = (pc - 2) + ofs;
-  } else if (op == 0x6100) {
-    LONG adr = pc + (SWORD)readMem16(pc);
-    pc += 2;
-    DUMP(opc, pc - opc, "bsr %06x", adr);
-    push32(pc);
-    pc = adr;
   } else if ((op & 0xff00) == 0x6100) {
-    SBYTE ofs = op & 0x00ff;
-    DUMP(opc, pc - opc, "bsr %08x", pc + ofs);
+    SWORD ofs = static_cast<SBYTE>(op & 0x00ff);
+    if (ofs == 0) {
+      ofs = readMem16(pc);
+      pc += 2;
+    }
+    DUMP(opc, pc - opc, "bsr $%06x", opc + ofs);
     push32(pc);
-    pc += ofs;
-  } else if (op == 0x6600) {
-    SWORD ofs = readMem16(pc);
-    pc += 2;
-    LONG dest = pc + ofs;
-    DUMP(opc, pc - opc, "bne %06x", dest);
-    if ((sr & FLAG_Z) == 0)
-      pc = dest;
+    pc = opc + ofs;
+  } else if ((op & 0xff00) == 0x6400) {
+    SWORD ofs = static_cast<SBYTE>(op & 0xff);
+    if (ofs == 0) {
+      ofs = readMem16(pc);
+      pc += 2;
+    }
+    DUMP(opc, pc - opc, "bcc %06x", pc + ofs);
+    if ((sr & FLAG_C) == 0)
+      pc += ofs;
   } else if ((op & 0xff00) == 0x6600) {
-    SWORD ofs = op & 0xff;
-    if (ofs >= 0x80)
-      ofs = 256 - ofs;
-    LONG dest = pc + ofs;
-    DUMP(opc, pc - opc, "bne %06x", dest);
+    SWORD ofs = static_cast<SBYTE>(op & 0xff);
+    if (ofs == 0) {
+      ofs = readMem16(pc);
+      pc += 2;
+    }
+    DUMP(opc, pc - opc, "bne %06x", pc + ofs);
     if ((sr & FLAG_Z) == 0)
-      pc = dest;
+      pc += ofs;
   } else if ((op & 0xff00) == 0x6700) {
-    SBYTE ofs = op & 0x00ff;
+    SWORD ofs = static_cast<SBYTE>(op & 0x00ff);
+    if (ofs == 0) {
+      ofs = readMem16(pc);
+      pc += 2;
+    }
     DUMP(opc, pc - opc, "beq %08x", pc + ofs);
     if ((sr & FLAG_Z) != 0)
       pc += ofs;
@@ -331,6 +372,44 @@ void MC68K::step() {
     int si = op & 7;
     DUMP(opc, pc - opc, "suba.l A%d, A%d", si, di);
     a[di] -= a[si];
+  } else if ((op & 0xf1c0) == 0xb000) {  // cmp.b
+    char srcBuf[32], *srcStr = srcBuf;
+    char dstBuf[32], *dstStr = dstBuf;
+    int n = (op >> 9) & 7;
+    int m = op & 7;
+    int st = (op >> 3) & 7;
+    BYTE src = readSource8(st, m, &srcStr);
+    BYTE dst = readSource8(0, n, &dstStr);
+    DUMP(opc, pc - opc, "cmp.b %s, %s", srcStr, dstStr);
+
+    // TODO: Check flag is true.
+    BYTE c = 0;
+    if (dst < src)
+      c |= FLAG_C;
+    if (dst == src)
+      c |= FLAG_Z;
+    if (((dst - src) & 0x80) != 0)
+      c |= FLAG_N;
+    sr = (sr & 0xff00) | c;
+  } else if ((op & 0xf1c0) == 0xb040) {  // cmp.w
+    char srcBuf[32], *srcStr = srcBuf;
+    char dstBuf[32], *dstStr = dstBuf;
+    int n = (op >> 9) & 7;
+    int m = op & 7;
+    int st = (op >> 3) & 7;
+    WORD src = readSource16(st, m, &srcStr);
+    WORD dst = readSource16(0, n, &dstStr);
+    DUMP(opc, pc - opc, "cmp.w %s, %s", srcStr, dstStr);
+
+    // TODO: Check flag is true.
+    BYTE c = 0;
+    if (dst < src)
+      c |= FLAG_C;
+    if (dst == src)
+      c |= FLAG_Z;
+    if (((dst - src) & 0x80) != 0)
+      c |= FLAG_N;
+    sr = (sr & 0xff00) | c;
   } else if ((op & 0xf1f8) == 0xb108) {
     int si = op & 7;
     int di = (op >> 9) & 7;
@@ -338,8 +417,8 @@ void MC68K::step() {
     BYTE v2 = readMem8(a[si]);
     a[si] += 1;
     a[di] += 1;
-    BYTE c = 0;
     // TODO: Check flag is true.
+    BYTE c = 0;
     if (v1 < v2)
       c |= FLAG_C;
     if (v1 == v2)
@@ -348,12 +427,39 @@ void MC68K::step() {
       c |= FLAG_N;
     sr = (sr & 0xff00) | c;
     DUMP(opc, pc - opc, "cmpm.b (A%d)+, (A%d)+", si, di);
-  } else if ((op & 0xf1ff) == 0xc0bc) {
-    int di = (op >> 9) & 7;
-    LONG src = readMem32(pc);
-    pc += 4;
-    DUMP(opc, pc - opc, "and.l #$%08x, D%d", src, di);
-    d[di].l &= src;
+  } else if ((op & 0xf1c0) == 0xb1c0) {  // cmpa.l
+    char srcBuf[32], *srcStr = srcBuf;
+    char dstBuf[32], *dstStr = dstBuf;
+    int n = (op >> 9) & 7;
+    int m = op & 7;
+    int st = (op >> 3) & 7;
+    LONG src = readSource32(st, m, &srcStr);
+    LONG dst = readSource32(1, n, &dstStr);
+    DUMP(opc, pc - opc, "cmpa.l %s, %s", srcStr, dstStr);
+
+    // TODO: Check flag is true.
+    BYTE c = 0;
+    if (dst < src)
+      c |= FLAG_C;
+    if (dst == src)
+      c |= FLAG_Z;
+    if (((dst - src) & 0x80) != 0)
+      c |= FLAG_N;
+    sr = (sr & 0xff00) | c;
+  } else if ((op & 0xf1c0) == 0xc040) {
+    char srcBuf[32], *srcStr = srcBuf;
+    int n = (op >> 9) & 7;
+    int m = op & 7;
+    WORD src = readSource16((op >> 3) & 7, m, &srcStr);
+    DUMP(opc, pc - opc, "and.w %s, D%d", srcStr, n);
+    d[n].w &= src;
+  } else if ((op & 0xf1c0) == 0xc080) {
+    char srcBuf[32], *srcStr = srcBuf;
+    int n = (op >> 9) & 7;
+    int m = op & 7;
+    LONG src = readSource32((op >> 3) & 7, m, &srcStr);
+    DUMP(opc, pc - opc, "and.l %s, D%d", srcStr, n);
+    d[n].l &= src;
   } else if ((op & 0xf1f8) == 0xd080) {
     int di = (op >> 9) & 7;
     int si = op & 7;
@@ -376,6 +482,34 @@ void MC68K::step() {
     pc += 4;
     DUMP(opc, pc - opc, "adda.l #$%08x, A%d", src, di);
     a[di] += src;
+  } else if ((op & 0xf1f8) == 0xe058) {
+    int si = (op >> 9) & 7;
+    si = ((si - 1) & 7) + 1;
+    int di = op & 7;
+    DUMP(opc, pc - opc, "ror.w #%d, D%d", si, di);
+    d[di].w = (d[di].w >> si) | (d[di].w << (16 - si));
+    // TODO: Set SR.
+  } else if ((op & 0xf1f8) == 0xe118) {
+    int si = (op >> 9) & 7;
+    si = ((si - 1) & 7) + 1;
+    int di = op & 7;
+    DUMP(opc, pc - opc, "rol.b #%d, D%d", si, di);
+    d[di].b = (d[di].b << si) | (d[di].b >> (8 - si));
+    // TODO: Set SR.
+  } else if ((op & 0xf1f8) == 0xe120) {
+    int si = (op >> 9) & 7;
+    int di = op & 7;
+    DUMP(opc, pc - opc, "asl.b D%d, D%d", si, di);
+    BYTE src = d[si].b & 63;
+    d[di].b <<= src;  // TODO: Check this is true.
+    // TODO: Set SR.
+  } else if ((op & 0xf1f8) == 0xe140) {
+    int si = (op >> 9) & 7;
+    si = ((si - 1) & 7) + 1;
+    int di = op & 7;
+    DUMP(opc, pc - opc, "asl.w #%d, D%d", si, di);
+    d[di].w <<= si;
+    // TODO: Set SR.
   } else {
     NOT_IMPLEMENTED;
   }
