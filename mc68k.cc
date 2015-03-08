@@ -17,6 +17,16 @@ constexpr LONG TRAP_VECTOR_START = 0x0080;
 
 static const char kSizeStr[] = {'\0', 'b', 'l', 'w'};
 static const char kSizeTable[] = {0, 1, 4, 2};
+static const char kDataRegNames[][3] = {"D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7"};
+static const char kAdrRegNames[][3] = {"A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7"};
+static const char kAdrIndirectNames[][5] = {"(A0)", "(A1)", "(A2)", "(A3)", "(A4)", "(A5)", "(A6)", "(A7)"};
+static const char kPostIncAdrIndirectNames[][6] = {"(A0)+", "(A1)+", "(A2)+", "(A3)+", "(A4)+", "(A5)+", "(A6)+", "(A7)+"};
+static const char kPreDecAdrIndirectNames[][6] = {"-(A0)", "-(A1)", "-(A2)", "-(A3)", "-(A4)", "-(A5)", "-(A6)", "-(A7)"};
+static const char kMoveNames[][6] = {"move", "movea", "move", "move", "move", "move", "move", "move"};
+
+#define NOT_IMPLEMENTED(pc) \
+  { DUMP(pc, 2, "*** ERROR ***");               \
+    assert(!"Unimplemented op"); }
 
 MC68K::MC68K() {
   clear();
@@ -148,6 +158,15 @@ void MC68K::step() {
     pc += 8;
     DUMP(opc, pc - opc, "move.l #$%08x, $%08x", src, dst);
     writeMem32(dst, src);
+  } else if ((op & 0xf000) == 0x3000) {  // move.w
+    char srcBuf[32], dstBuf[32];
+    char *srcStr = srcBuf, *dstStr = dstBuf;
+    int n = (op >> 9) & 7;
+    int m = op & 7;
+    int dt = (op >> 6) & 7;
+    WORD src = readSource16((op >> 3) & 7, m, &srcStr);
+    writeDestination16(dt, n, src, opc, &dstStr);
+    DUMP(opc, pc - opc, "%s.w %s, %s", kMoveNames[dt], srcStr, dstStr);
   } else if ((op & 0xf1ff) == 0x3039) {
     int di = (op >> 9) & 7;
     LONG src = readMem32(pc);
@@ -397,8 +416,7 @@ void MC68K::step() {
     DUMP(opc, pc - opc, "adda.l #$%08x, A%d", src, di);
     a[di] += src;
   } else {
-    DUMP(opc, 2, "*** ERROR ***");
-    assert(!"Unimplemented op");
+    NOT_IMPLEMENTED(opc);
   }
 }
 
@@ -445,4 +463,138 @@ void MC68K::dumpOps(uint32_t adr, int bytes) {
     p += sprintf(p, " %04x", readMem16(adr + i));
   }
   printf("%-32s  ", buffer);
+}
+
+WORD MC68K::readSource16(int type, int m, char** str) {
+  switch (type) {
+  case 0:  // move.w Dm, xx
+    *str = const_cast<char*>(kDataRegNames[m]);
+    return d[m].w;
+  case 1:  // move.w Am, xx
+    *str = const_cast<char*>(kAdrRegNames[m]);
+    return a[m];
+  case 2:  // move.w (Am), xx
+    *str = const_cast<char*>(kAdrIndirectNames[m]);
+    return readMem16(a[m]);
+  case 3:  // move.w (Am)+, xx
+    {
+      LONG adr = a[m];
+      a[m] += 2;
+      *str = const_cast<char*>(kPostIncAdrIndirectNames[m]);
+      return readMem16(adr);
+    }
+  case 4:  // move.w -(Am), xx
+    a[m] -= 2;
+    *str = const_cast<char*>(kPreDecAdrIndirectNames[m]);
+    return readMem16(a[m]);
+  case 5:  // move.w ($123,Am), xx
+    {
+      SWORD ofs = readMem16(pc);
+      pc += 2;
+      sprintf(*str, "(%d, A%d)", ofs, m);
+      return readMem16(a[m] + ofs);
+    }
+  case 6:  // move.w ([$4567,A0,D0.w],-$3211), xx
+    break;
+  case 7:  // Misc.
+    switch (m) {
+    case 0:  // move.w $XXXX.w, xx
+      {
+        WORD adr = readMem16(pc);
+        pc += 2;
+        sprintf(*str, "$%04x", adr);
+        return readMem16(adr);
+      }
+    case 1:  // move.w $XXXXXXXX.l, xx
+      {
+        LONG adr = readMem32(pc);
+        pc += 4;
+        sprintf(*str, "$%08x", adr);
+        return readMem16(adr);
+      }
+    case 2:  // move.w ($XXXX, PC), xx
+      {
+        SWORD ofs = readMem16(pc);
+        pc += 2;
+        sprintf(*str, "(%d, PC)", ofs);
+        return readMem16(pc + ofs);
+      }
+    case 3:  // move.w ([$XXXX,A0,D0.w],$YYYY), xx
+      break;
+    case 4:  // move.w #$XXXX, xx
+      {
+        WORD src = readMem16(pc);
+        pc += 2;
+        sprintf(*str, "#$%04x", src);
+        return src;
+      }
+    default:
+      break;
+    }
+  default:
+    break;
+  }
+  NOT_IMPLEMENTED(pc - 2);
+  return 0;
+}
+
+void MC68K::writeDestination16(int type, int n, WORD src, LONG opc, char** str) {
+  switch (type) {
+  case 0:  // move.w xx, Dn
+    d[n].w = src;
+    *str = const_cast<char*>(kDataRegNames[n]);
+    return;
+  case 1:  // move.w xx, An
+    a[n] = (SWORD) src;
+    *str = const_cast<char*>(kAdrRegNames[n]);
+    return;
+  case 2:  // move.w xx, (An)
+    writeMem16(a[n], src);
+    *str = const_cast<char*>(kAdrIndirectNames[n]);
+    return;
+  case 3:  // move.w xx, (An)+
+    writeMem16(a[n], src);
+    a[n] += 2;
+    *str = const_cast<char*>(kPostIncAdrIndirectNames[n]);
+    return;
+  case 4:  // move.w xx, -(An)
+    a[n] -= 2;
+    writeMem16(a[n], src);
+    *str = const_cast<char*>(kPreDecAdrIndirectNames[n]);
+    return;
+  case 5:  // move.w xx, ($123,An)
+    {
+      SWORD ofs = readMem16(pc);
+      pc += 2;
+      writeMem16(a[n] + ofs, src);
+      sprintf(*str, "(%d, A%d)", ofs, n);
+    }
+    return;
+  case 6:  // move.w xx, ([$4567,A0,D0.w],-$3211)
+    break;
+  case 7:  // move.w xx, $XXXX.w
+    switch (n) {
+    case 0:
+      {
+        WORD adr = readMem16(pc);
+        pc += 2;
+        writeMem16(adr, src);
+        sprintf(*str, "$%04x", adr);
+      }
+      return;
+    case 1:
+      {
+        LONG adr = readMem32(pc);
+        pc += 4;
+        writeMem16(adr, src);
+        sprintf(*str, "$%08x", adr);
+      }
+      return;
+    default:
+      break;
+    }
+  default:
+    break;
+  }
+  NOT_IMPLEMENTED(opc);
 }

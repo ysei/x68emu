@@ -93,6 +93,9 @@ private:
     }
   }
 
+  WORD readSource16(int type, int m, char** str);
+  void writeDestination16(int type, int n, WORD src, LONG opc, char** str);
+
   void dumpOps(uint32_t adr, int bytes);
 };
 
